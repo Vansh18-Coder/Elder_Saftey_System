@@ -1,0 +1,1 @@
+"""Elderly safety prototype package."""
