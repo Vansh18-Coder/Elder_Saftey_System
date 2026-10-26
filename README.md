@@ -171,11 +171,14 @@ python app.py --demo prepare-real-data --data-root data/raw/benchmark --sequence
 # Train the GRU classifier
 python app.py --demo train-gru --data-dir data/sequences/demo_dataset --epochs 25 --batch-size 8
 
-# Evaluate the trained classifier on the test split
-python app.py --demo eval --data-dir data/sequences/demo_dataset --model-path models/gru_demo/gru_fall_classifier.pt
+# Train on the prepared UR Fall sequences and calibrate a fall threshold for at least 95% validation precision
+python scripts/train_gru.py --data-dir data/sequences/ur_fall --epochs 25 --batch-size 64 --target-precision 0.95 --output-dir models/ur_fall_precision
 
-# Run the real-time inference demo
-python app.py --demo inference --model-path models/gru_demo/gru_fall_classifier.pt --source 0 --sequence-length 30
+# Evaluate the trained classifier on the test split
+python scripts/evaluate_model.py --data-dir data/sequences/ur_fall --model-path models/ur_fall_precision/gru_fall_classifier.pt --split test
+
+# Run the real-time inference demo (uses the threshold calibrated during training)
+python scripts/run_inference_demo.py --model-path models/ur_fall_precision/gru_fall_classifier.pt --source 0 --sequence-length 30
 
 # Launch a simple alert/status UI
 python app.py --demo ui

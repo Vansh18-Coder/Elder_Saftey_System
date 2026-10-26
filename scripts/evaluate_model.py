@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.evaluation.metrics import classification_report
-from src.training.gru_model import GRUFallClassifier, load_model
+from src.training.gru_model import load_model
 
 
 def load_partition(data_dir, name):
@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--model-path", type=str, default="models/gru_demo/gru_fall_classifier.pt", help="Path to the saved model checkpoint.")
     parser.add_argument("--data-dir", type=str, default="data/sequences/demo_dataset", help="Directory containing dataset partitions.")
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"], help="Partition to evaluate on.")
+    parser.add_argument("--threshold", type=float, default=None, help="Fall confidence threshold (default: model calibration, or 0.5).")
     parser.add_argument("--output", type=str, default=None, help="Optional JSON file to save the metrics summary.")
     args = parser.parse_args()
 
@@ -36,21 +37,43 @@ def main():
     if not model_path.exists():
         raise FileNotFoundError(f"Model checkpoint not found at {model_path}. Train a model first or pass --model-path.")
 
+    model_config_path = model_path.with_name("gru_model_config.json")
+    model_config = {}
+    if model_config_path.exists():
+        with model_config_path.open("r", encoding="utf-8") as handle:
+            model_config = json.load(handle)
+    threshold = args.threshold
+    if threshold is None:
+        threshold = model_config.get("fall_threshold")
+    if threshold is None:
+        threshold = 0.5
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError("Fall confidence threshold must be between 0 and 1.")
+
     data_dir = Path(args.data_dir)
     x, y = load_partition(data_dir, args.split)
     if x.size == 0:
         raise RuntimeError(f"Selected split '{args.split}' is empty in {data_dir}.")
 
-    model = load_model(str(model_path), input_dim=int(x.shape[-1]), hidden_dim=64, num_layers=2, num_classes=2)
+    model = load_model(
+        str(model_path),
+        input_dim=int(x.shape[-1]),
+        hidden_dim=int(model_config.get("hidden_dim", 64)),
+        num_layers=int(model_config.get("num_layers", 2)),
+        num_classes=2,
+    )
     model.eval()
 
     tensor_x = torch.tensor(x, dtype=torch.float32)
-    logits = model(tensor_x)
-    predictions = logits.argmax(dim=1).numpy()
+    with torch.no_grad():
+        logits = model(tensor_x)
+        fall_probabilities = torch.softmax(logits, dim=1)[:, 1].numpy()
+    predictions = (fall_probabilities >= threshold).astype(np.int64)
     report = classification_report(y, predictions, num_classes=2)
 
     print(f"Evaluating model: {model_path}")
     print(f"Dataset split: {args.split}")
+    print(f"Fall threshold: {threshold:.4f}")
     print(f"Samples: {len(y)}")
     print(f"Accuracy: {report['accuracy']:.4f}")
     print(f"Precision: {report['precision']:.4f}")
@@ -65,6 +88,7 @@ def main():
         output_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "split": args.split,
+            "threshold": float(threshold),
             "samples": int(len(y)),
             "accuracy": float(report["accuracy"]),
             "precision": float(report["precision"]),

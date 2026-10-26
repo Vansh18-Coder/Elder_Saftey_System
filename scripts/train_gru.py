@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -12,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.training.gru_model import GRUFallClassifier, build_loader, evaluate_model, save_model, train_epoch
+from src.evaluation.thresholds import select_threshold_for_precision
 
 
 def load_partition(data_dir, name):
@@ -34,6 +36,7 @@ def main():
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--target-precision", type=float, default=None, help="Minimum fall precision to target when calibrating the validation threshold; higher targets can reduce recall.")
     parser.add_argument("--output-dir", type=str, default="models/gru_demo")
     args = parser.parse_args()
 
@@ -61,19 +64,52 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    best_val_loss = float("inf")
+    best_val_epoch = None
+    best_model_state = None
 
     for epoch in range(1, args.epochs + 1):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         if val_loader is not None:
             val_loss, val_acc, _, _ = evaluate_model(model, val_loader, criterion, device)
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_val_epoch = epoch
+                best_model_state = copy.deepcopy(model.state_dict())
             print(f"Epoch {epoch:02d} | train_loss={train_loss:.4f} train_acc={train_acc:.3f} | val_loss={val_loss:.4f} val_acc={val_acc:.3f}")
         else:
             print(f"Epoch {epoch:02d} | train_loss={train_loss:.4f} train_acc={train_acc:.3f}")
 
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f"Restored best validation-loss checkpoint from epoch {best_val_epoch}.")
+
     if val_loader is not None:
         final_val_loss, final_val_acc, _, _ = evaluate_model(model, val_loader, criterion, device)
+        model.eval()
+        with torch.no_grad():
+            val_logits = model(torch.tensor(val_x, dtype=torch.float32, device=device))
+            val_fall_probabilities = torch.softmax(val_logits, dim=1)[:, 1].cpu().numpy()
+        if args.target_precision is not None:
+            try:
+                fall_threshold, threshold_report = select_threshold_for_precision(
+                    val_y,
+                    val_fall_probabilities,
+                    target_precision=args.target_precision,
+                )
+            except ValueError as error:
+                raise RuntimeError(f"Could not calibrate fall threshold: {error}") from error
+            print(
+                f"Validation threshold={fall_threshold:.4f} | "
+                f"precision={threshold_report['precision']:.3f} "
+                f"recall={threshold_report['recall']:.3f}"
+            )
+        else:
+            fall_threshold = None
+            print("Skipping threshold calibration; pass --target-precision to calibrate on validation data.")
     else:
         final_val_loss, final_val_acc = None, None
+        fall_threshold = None
 
     config = {
         "input_dim": int(train_x.shape[-1]),
@@ -83,9 +119,12 @@ def main():
         "learning_rate": args.lr,
         "batch_size": args.batch_size,
         "epochs": args.epochs,
+        "best_val_epoch": best_val_epoch,
         "device": str(device),
         "val_loss": None if final_val_loss is None else float(final_val_loss),
         "val_accuracy": None if final_val_acc is None else float(final_val_acc),
+        "target_precision": args.target_precision,
+        "fall_threshold": fall_threshold,
     }
 
     save_model(model, args.output_dir, config)

@@ -34,7 +34,7 @@ def main():
     parser.add_argument("--model-path", type=str, default="models/gru_demo/gru_fall_classifier.pt", help="Saved model checkpoint.")
     parser.add_argument("--source", type=int, default=0, help="Camera index.")
     parser.add_argument("--sequence-length", type=int, default=30, help="Number of frames in the temporal buffer.")
-    parser.add_argument("--threshold", type=float, default=0.75, help="Fall confidence threshold.")
+    parser.add_argument("--threshold", type=float, default=None, help="Override the calibrated fall threshold saved with the model (default: saved threshold, or 0.75 if unavailable).")
     args = parser.parse_args()
 
     cap = cv2.VideoCapture(args.source)
@@ -46,6 +46,7 @@ def main():
         sequence_length=args.sequence_length,
         threshold=args.threshold,
     )
+    print(f"Using fall confidence threshold: {predictor.threshold:.4f}")
     detector = PoseDetector()
 
     while True:

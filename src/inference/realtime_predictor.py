@@ -5,7 +5,10 @@ from collections import deque
 import numpy as np
 import torch
 
-from src.training.gru_model import GRUFallClassifier, load_model
+from pathlib import Path
+import json
+
+from src.training.gru_model import load_model
 
 
 class SequenceBuffer:
@@ -29,11 +32,29 @@ class SequenceBuffer:
 
 
 class RealTimePredictor:
-    def __init__(self, model_path, sequence_length=30, threshold=0.75):
-        self.model = load_model(model_path, input_dim=132, hidden_dim=64, num_layers=2, num_classes=2)
+    def __init__(self, model_path, sequence_length=30, threshold=None):
+        config_path = Path(model_path).with_name("gru_model_config.json")
+        model_config = {}
+        if config_path.exists():
+            with config_path.open("r", encoding="utf-8") as handle:
+                model_config = json.load(handle)
+
+        self.model = load_model(
+            model_path,
+            input_dim=int(model_config.get("input_dim", 132)),
+            hidden_dim=int(model_config.get("hidden_dim", 64)),
+            num_layers=int(model_config.get("num_layers", 2)),
+            num_classes=2,
+        )
         self.sequence_length = sequence_length
         self.buffer = SequenceBuffer(sequence_length=sequence_length)
-        self.threshold = threshold
+        if threshold is None:
+            threshold = model_config.get("fall_threshold")
+            if threshold is None:
+                threshold = 0.75
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("Fall confidence threshold must be between 0 and 1.")
+        self.threshold = float(threshold)
 
     def update(self, feature_vector):
         if feature_vector is None:
