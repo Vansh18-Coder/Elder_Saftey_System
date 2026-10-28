@@ -177,7 +177,7 @@ python scripts/train_gru.py --data-dir data/sequences/ur_fall --epochs 25 --batc
 # Evaluate the trained classifier on the test split
 python scripts/evaluate_model.py --data-dir data/sequences/ur_fall --model-path models/ur_fall_precision/gru_fall_classifier.pt --split test
 
-# Run the real-time inference demo (uses the threshold calibrated during training)
+# Run the real-time inference demo (uses the precision-calibrated threshold saved with the model)
 python scripts/run_inference_demo.py --model-path models/ur_fall_precision/gru_fall_classifier.pt --source 0 --sequence-length 30
 
 # Launch a simple alert/status UI

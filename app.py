@@ -70,8 +70,8 @@ def main():
     parser.add_argument("--hidden-dim", type=int, default=64, help="GRU hidden size")
     parser.add_argument("--num-layers", type=int, default=2, help="GRU layer count")
     parser.add_argument("--dropout", type=float, default=0.2, help="Dropout factor")
-    parser.add_argument("--model-path", type=str, default="models/gru_demo/gru_fall_classifier.pt", help="Path to trained GRU checkpoint")
-    parser.add_argument("--threshold", type=float, default=0.75, help="Confidence threshold for fall detection")
+    parser.add_argument("--model-path", type=str, default="models/ur_fall_precision/gru_fall_classifier.pt", help="Path to trained GRU checkpoint")
+    parser.add_argument("--threshold", type=float, default=None, help="Override the saved fall confidence threshold")
     args = parser.parse_args()
 
     demo = args.demo
@@ -248,18 +248,19 @@ def main():
         raise SystemExit(result.returncode)
 
     if demo == "inference":
+        inference_args = [
+            "--model-path",
+            args.model_path,
+            "--source",
+            args.source,
+            "--sequence-length",
+            args.sequence_length,
+        ]
+        if args.threshold is not None:
+            inference_args.extend(["--threshold", args.threshold])
         result = run_script(
             "run_inference_demo.py",
-            [
-                "--model-path",
-                args.model_path,
-                "--source",
-                args.source,
-                "--sequence-length",
-                args.sequence_length,
-                "--threshold",
-                args.threshold,
-            ],
+            inference_args,
         )
         raise SystemExit(result.returncode)
 

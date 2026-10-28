@@ -31,7 +31,7 @@ def feature_vector_from_landmarks(landmarks):
 
 def main():
     parser = argparse.ArgumentParser(description="Run a GRU-based real-time fall detection demo.")
-    parser.add_argument("--model-path", type=str, default="models/gru_demo/gru_fall_classifier.pt", help="Saved model checkpoint.")
+    parser.add_argument("--model-path", type=str, default="models/ur_fall_precision/gru_fall_classifier.pt", help="Saved model checkpoint.")
     parser.add_argument("--source", type=int, default=0, help="Camera index.")
     parser.add_argument("--sequence-length", type=int, default=30, help="Number of frames in the temporal buffer.")
     parser.add_argument("--threshold", type=float, default=None, help="Override the calibrated fall threshold saved with the model (default: saved threshold, or 0.75 if unavailable).")
