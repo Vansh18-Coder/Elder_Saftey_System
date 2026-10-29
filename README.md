@@ -159,6 +159,15 @@ python app.py --demo download-ur-benchmark --data-root data/raw/ur_fall
 # Convert the downloaded MP4s into the project's benchmark normal/fall pose CSV layout
 python app.py --demo convert-ur-benchmark --data-root data/raw/ur_fall --target-root data/raw/benchmark
 
+# Convert extracted UP-Fall camera image sequences (see data/README.md for download and folder-layout details)
+python app.py --demo convert-up-fall-camera --data-root data/raw/up_fall_camera --target-root data/raw/up_fall_pose --frame-step 1
+
+# Download OmniFall segment annotations (optional 9.7 GB video download requires --download-videos)
+python app.py --demo download-omnifall --data-root data/raw/omnifall
+
+# Convert extracted OmniFall videos to normal/fall pose CSVs
+python app.py --demo convert-omnifall --data-root data/raw/omnifall/videos --annotations data/raw/omnifall/labels-syn.csv --target-root data/raw/omnifall_pose --frame-step 2
+
 # Organize raw CSVs into benchmark/normal and benchmark/fall folders for real-data preparation
 python app.py --demo organize-benchmark --data-root data/raw --target-root data/raw/benchmark
 

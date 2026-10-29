@@ -1,0 +1,15 @@
+{
+  "input_dim": 132,
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "dropout": 0.2,
+  "learning_rate": 0.001,
+  "batch_size": 32,
+  "epochs": 50,
+  "best_val_epoch": 21,
+  "device": "cpu",
+  "val_loss": 0.22174299415029336,
+  "val_accuracy": 0.9571890145395799,
+  "target_precision": null,
+  "fall_threshold": null
+}

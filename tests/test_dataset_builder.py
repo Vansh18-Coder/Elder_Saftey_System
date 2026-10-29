@@ -40,3 +40,46 @@ def test_source_split_keeps_singleton_sources_in_training():
     assert len(train) == 2
     assert val == []
     assert test == []
+
+
+def test_camera_views_from_same_source_stay_in_the_same_split():
+    windows = []
+    for label, prefix in ((0, "activity-01"), (1, "activity-07")):
+        for source_index in range(10):
+            trial_name = f"subject-01_{prefix}_trial-{source_index:02d}"
+            for camera in ("Camera1", "Camera2"):
+                windows.append((
+                    np.zeros((2, 4), dtype=np.float32),
+                    label,
+                    f"{trial_name}_{camera}",
+                ))
+
+    partitions = split_windows_by_source(windows)
+    source_sets = [
+        {window[2].rsplit("_", 1)[0] for window in partition}
+        for partition in partitions
+    ]
+
+    assert source_sets[0].isdisjoint(source_sets[1])
+    assert source_sets[0].isdisjoint(source_sets[2])
+    assert source_sets[1].isdisjoint(source_sets[2])
+
+
+def test_omnifall_segments_from_same_video_stay_in_one_split():
+    windows = []
+    for video_index in range(10):
+        source = f"fall_fall_ch_{video_index:03d}"
+        windows.extend([
+            (np.zeros((2, 4), dtype=np.float32), 0, f"{source}_segment-0000"),
+            (np.zeros((2, 4), dtype=np.float32), 1, f"{source}_segment-0001"),
+        ])
+
+    partitions = split_windows_by_source(windows)
+    source_sets = [
+        {window[2].rsplit("_segment-", 1)[0] for window in partition}
+        for partition in partitions
+    ]
+
+    assert source_sets[0].isdisjoint(source_sets[1])
+    assert source_sets[0].isdisjoint(source_sets[2])
+    assert source_sets[1].isdisjoint(source_sets[2])

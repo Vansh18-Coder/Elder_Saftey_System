@@ -6,10 +6,10 @@
   "learning_rate": 0.01,
   "batch_size": 64,
   "epochs": 25,
-  "best_val_epoch": 17,
+  "best_val_epoch": 6,
   "device": "cpu",
-  "val_loss": 0.4131645679327935,
-  "val_accuracy": 0.8521809369951535,
+  "val_loss": 0.3130986940157818,
+  "val_accuracy": 0.9119547657512116,
   "target_precision": 0.95,
   "fall_threshold": 0.75
 }

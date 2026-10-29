@@ -14,10 +14,41 @@ from src.pose.mediapipe_pose import PoseDetector
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
+UP_FALL_ACTIVITY_LABELS = {
+    **{activity_id: "normal" for activity_id in range(1, 7)},
+    **{activity_id: "fall" for activity_id in range(7, 12)},
+}
 
 
-def infer_label_from_path(path: Path, dataset_root: Path):
+def infer_label_from_path(path: Path, dataset_root: Path, dataset: str = "ur-fall"):
     relative_parts = path.relative_to(dataset_root).parts
+
+    if dataset == "up-fall":
+        activity_id = None
+        for index, part in enumerate(relative_parts):
+            name = Path(part).stem.lower()
+            activity_match = re.match(r"^(?:activity|act)[-_ ]*0*(\d+)$", name)
+            if activity_match:
+                activity_id = int(activity_match.group(1))
+                break
+
+            if name.isdigit() and 1 <= int(name) <= 11 and index > 0:
+                parent_name = Path(relative_parts[index - 1]).stem.lower()
+                if re.match(r"^(?:subject|sub)[-_ ]*\d+$", parent_name):
+                    activity_id = int(name)
+                    break
+
+        if activity_id in UP_FALL_ACTIVITY_LABELS:
+            return UP_FALL_ACTIVITY_LABELS[activity_id]
+
+        raise ValueError(
+            f"Could not infer UP-Fall activity label from {path}. "
+            "Expected an activity folder named activity-01 through activity-11."
+        )
+
+    if dataset != "ur-fall":
+        raise ValueError(f"Unsupported dataset: {dataset}")
+
     for part in reversed(relative_parts):
         name = Path(part).stem.lower()
         if re.match(r"^fall(?:[-_ ]|$)", name):
@@ -64,11 +95,11 @@ def flatten_landmarks(landmarks):
     return (values + [0.0] * (132 - len(values)))[:132]
 
 
-def image_sequence_frames(sequence_dir: Path):
+def image_sequence_frames(sequence_dir: Path, frame_step: int = 1):
     return sorted(
         path for path in sequence_dir.iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-    )
+    )[::frame_step]
 
 
 def convert_frames(frame_reader, source_path: Path, source_name: str, label: str, output_root: Path, detector: PoseDetector):
@@ -101,8 +132,15 @@ def convert_frames(frame_reader, source_path: Path, source_name: str, label: str
     print(f"Saved {len(rows)} frames to {output_path}")
 
 
-def convert_video(video_path: Path, dataset_root: Path, output_root: Path, detector: PoseDetector, frame_step: int):
-    label = infer_label_from_path(video_path, dataset_root)
+def convert_video(
+    video_path: Path,
+    dataset_root: Path,
+    output_root: Path,
+    detector: PoseDetector,
+    frame_step: int,
+    dataset: str = "ur-fall",
+):
+    label = infer_label_from_path(video_path, dataset_root, dataset)
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
         raise RuntimeError(f"Could not open video file: {video_path}")
@@ -127,9 +165,16 @@ def convert_video(video_path: Path, dataset_root: Path, output_root: Path, detec
         capture.release()
 
 
-def convert_image_sequence(sequence_dir: Path, dataset_root: Path, output_root: Path, detector: PoseDetector):
-    label = infer_label_from_path(sequence_dir, dataset_root)
-    frame_paths = image_sequence_frames(sequence_dir)
+def convert_image_sequence(
+    sequence_dir: Path,
+    dataset_root: Path,
+    output_root: Path,
+    detector: PoseDetector,
+    frame_step: int = 1,
+    dataset: str = "ur-fall",
+):
+    label = infer_label_from_path(sequence_dir, dataset_root, dataset)
+    frame_paths = image_sequence_frames(sequence_dir, frame_step)
     frame_iterator = iter(frame_paths)
 
     def read_frame():
@@ -143,13 +188,18 @@ def convert_image_sequence(sequence_dir: Path, dataset_root: Path, output_root: 
     convert_frames(read_frame, sequence_dir, source_name, label, output_root, detector)
 
 
-def convert_dataset(dataset_root: Path, output_root: Path, frame_step: int = 1):
+def convert_dataset(
+    dataset_root: Path,
+    output_root: Path,
+    frame_step: int = 1,
+    dataset: str = "ur-fall",
+):
     dataset_root = dataset_root.resolve()
     output_root = output_root.resolve()
     if not dataset_root.exists():
         raise FileNotFoundError(
-            f"UR Fall dataset folder does not exist: {dataset_root}\n"
-            "Download the official camera-0 videos first with:\n"
+            f"Dataset folder does not exist: {dataset_root}\n"
+            "Download and extract the dataset's camera files first. For UR Fall, run:\n"
             "  python app.py --demo download-ur-benchmark --data-root data/raw/ur_fall\n"
             "Then run this converter again."
         )
@@ -163,8 +213,9 @@ def convert_dataset(dataset_root: Path, output_root: Path, frame_step: int = 1):
     if not video_files and not image_dirs:
         raise FileNotFoundError(
             f"No videos or extracted image sequences found under {dataset_root}.\n"
-            "Expected UR Fall camera-0 MP4 files (fall-XX-cam0.mp4 and adl-XX-cam0.mp4), "
-            "or extracted RGB image sequences inside fall/ and adl/ folders."
+            "Expected video files named for their fall/adl label, or extracted image sequences "
+            "inside labelled folders. UP-Fall camera folders must include activity-01 through "
+            "activity-11 in their path."
         )
 
     output_root.mkdir(parents=True, exist_ok=True)
@@ -174,14 +225,28 @@ def convert_dataset(dataset_root: Path, output_root: Path, frame_step: int = 1):
     try:
         if video_files:
             for video_path in video_files:
-                label = infer_label_from_path(video_path, dataset_root)
-                convert_video(video_path, dataset_root, output_root, detector, frame_step)
+                label = infer_label_from_path(video_path, dataset_root, dataset)
+                convert_video(
+                    video_path,
+                    dataset_root,
+                    output_root,
+                    detector,
+                    frame_step,
+                    dataset,
+                )
                 labels[label] += 1
                 converted += 1
         else:
             for sequence_dir in image_dirs:
-                label = infer_label_from_path(sequence_dir, dataset_root)
-                convert_image_sequence(sequence_dir, dataset_root, output_root, detector)
+                label = infer_label_from_path(sequence_dir, dataset_root, dataset)
+                convert_image_sequence(
+                    sequence_dir,
+                    dataset_root,
+                    output_root,
+                    detector,
+                    frame_step=frame_step,
+                    dataset=dataset,
+                )
                 labels[label] += 1
                 converted += 1
     finally:
@@ -194,15 +259,21 @@ def convert_dataset(dataset_root: Path, output_root: Path, frame_step: int = 1):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert UR Fall camera-0 videos or extracted RGB frames into labelled pose CSVs."
+        description="Convert benchmark videos or extracted RGB frames into labelled pose CSVs."
     )
-    parser.add_argument("--dataset-root", type=str, default="data/raw/ur_fall", help="Root of the downloaded UR Fall dataset.")
+    parser.add_argument("--dataset-root", type=str, default="data/raw/ur_fall", help="Root of the downloaded or extracted dataset.")
     parser.add_argument("--output-root", type=str, default="data/raw/benchmark", help="Destination for normal/ and fall/ pose CSVs.")
-    parser.add_argument("--frame-step", type=int, default=1, help="Process every Nth video frame to reduce conversion time.")
+    parser.add_argument("--frame-step", type=int, default=1, help="Process every Nth video frame or image.")
+    parser.add_argument("--dataset", choices=["ur-fall", "up-fall"], default="ur-fall", help="Dataset naming and label convention.")
     args = parser.parse_args()
 
     try:
-        convert_dataset(Path(args.dataset_root), Path(args.output_root), frame_step=args.frame_step)
+        convert_dataset(
+            Path(args.dataset_root),
+            Path(args.output_root),
+            frame_step=args.frame_step,
+            dataset=args.dataset,
+        )
     except (FileNotFoundError, NotADirectoryError, RuntimeError, ValueError) as exc:
         parser.exit(1, f"Error: {exc}\n")
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
@@ -9,6 +10,11 @@ import numpy as np
 import pandas as pd
 
 EXPECTED_FEATURE_DIM = 132
+
+
+def _source_group_name(source_name: str) -> str:
+    source_name = re.sub(r"[_-]segment[-_]?\d+$", "", source_name, flags=re.IGNORECASE)
+    return re.sub(r"[_-](?:camera|cam)[ _-]?\d+$", "", source_name, flags=re.IGNORECASE)
 
 
 def load_pose_csv(csv_path: str | Path) -> np.ndarray:
@@ -76,7 +82,7 @@ def split_windows_by_source(windows: Iterable[Tuple[np.ndarray, int, str]], vali
     grouped: Dict[str, List[Tuple[np.ndarray, int, str]]] = {}
     for window in windows:
         _, _, source_name = window
-        grouped.setdefault(source_name, []).append(window)
+        grouped.setdefault(_source_group_name(source_name), []).append(window)
 
     if not 0 <= validation_fraction < 1 or not 0 <= test_fraction < 1:
         raise ValueError("Validation and test fractions must be between 0 and 1.")

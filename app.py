@@ -33,6 +33,9 @@ def main():
             "prepare",
             "prepare-real-data",
             "convert-ur-benchmark",
+            "convert-up-fall-camera",
+            "download-omnifall",
+            "convert-omnifall",
             "download-ur-benchmark",
             "download-benchmark",
             "organize-benchmark",
@@ -57,6 +60,8 @@ def main():
     parser.add_argument("--source-root", type=str, default="data/raw", help="Source directory for benchmark downloads or raw CSV files")
     parser.add_argument("--dataset", choices=["ur-fall", "up-fall"], default="ur-fall", help="Public benchmark dataset to download or organize")
     parser.add_argument("--download-url", type=str, default="", help="Optional direct archive URL for a public benchmark dataset")
+    parser.add_argument("--annotations", type=str, default="data/raw/omnifall/labels-syn.csv", help="OmniFall segment annotation CSV")
+    parser.add_argument("--download-videos", action="store_true", help="Download OmniFall's 9.7 GB synthetic-video archive")
     parser.add_argument("--frame-step", type=int, default=1, help="Process every Nth frame when converting benchmark videos")
     parser.add_argument("--sequence-length", type=int, default=30, help="Temporal sequence length")
     parser.add_argument("--stride", type=int, default=1, help="Sequence stride")
@@ -130,6 +135,47 @@ def main():
             "convert_ur_fall_dataset.py",
             [
                 "--dataset-root",
+                args.data_root,
+                "--output-root",
+                args.target_root,
+                "--frame-step",
+                args.frame_step,
+                "--dataset",
+                "ur-fall",
+            ],
+        )
+        raise SystemExit(result.returncode)
+
+    if demo == "convert-up-fall-camera":
+        result = run_script(
+            "convert_ur_fall_dataset.py",
+            [
+                "--dataset-root",
+                args.data_root,
+                "--output-root",
+                args.target_root,
+                "--frame-step",
+                args.frame_step,
+                "--dataset",
+                "up-fall",
+            ],
+        )
+        raise SystemExit(result.returncode)
+
+    if demo == "download-omnifall":
+        extra_args = ["--output-dir", args.data_root]
+        if args.download_videos:
+            extra_args.append("--download-videos")
+        result = run_script("download_omnifall.py", extra_args)
+        raise SystemExit(result.returncode)
+
+    if demo == "convert-omnifall":
+        result = run_script(
+            "convert_omnifall_dataset.py",
+            [
+                "--annotations",
+                args.annotations,
+                "--video-root",
                 args.data_root,
                 "--output-root",
                 args.target_root,
