@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 import cv2
-import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -11,22 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.inference.realtime_predictor import RealTimePredictor
 from src.pose.mediapipe_pose import PoseDetector
-
-
-def feature_vector_from_landmarks(landmarks):
-    if landmarks is None:
-        return None
-    vector = []
-    for landmark in landmarks:
-        vector.extend([
-            float(landmark.get("x", 0.0)),
-            float(landmark.get("y", 0.0)),
-            float(landmark.get("z", 0.0)),
-            float(landmark.get("visibility", 0.0)),
-        ])
-    if len(vector) < 132:
-        vector.extend([0.0] * (132 - len(vector)))
-    return np.asarray(vector[:132], dtype=np.float32)
+from src.preprocessing.keypoints import feature_vector_from_landmarks
 
 
 def main():

@@ -20,6 +20,22 @@ def flatten_landmarks(landmarks: Iterable[dict]) -> np.ndarray:
     return np.asarray(flat, dtype=np.float32)
 
 
+def feature_vector_from_landmarks(
+    landmarks: Iterable[dict] | None,
+    feature_dim: int = 132,
+) -> np.ndarray | None:
+    """Convert pose landmarks to the fixed-size vector expected by the fall model."""
+    if landmarks is None:
+        return None
+    if feature_dim <= 0:
+        raise ValueError("Feature dimension must be greater than zero.")
+
+    features = flatten_landmarks(landmarks)
+    if features.size < feature_dim:
+        features = np.pad(features, (0, feature_dim - features.size))
+    return features[:feature_dim]
+
+
 def normalize_keypoints(landmarks: Iterable[dict], image_width: float = 1.0, image_height: float = 1.0) -> np.ndarray:
     """Normalize pixel-space keypoints to [0, 1] using image dimensions.
 

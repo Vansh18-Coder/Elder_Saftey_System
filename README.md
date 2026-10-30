@@ -332,3 +332,18 @@ The next phase will cover:
 - training and evaluation.
 
 This is intentionally delayed until the camera and pose pipeline are confirmed to work.
+
+## Run the browser-based local fall-detection app
+
+The browser page can run the trained model by connecting to a Python service on the same computer. From the project root, activate the environment and start the service:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\run_web_app.py
+```
+
+Open `http://127.0.0.1:8000` in a browser, press **Start fall detection**, and allow camera access. The page sends individual camera frames over localhost to MediaPipe and the GRU model. Frames are processed in memory and are not saved or uploaded. The detector needs 30 visible-person frames before its first prediction. The alert-threshold slider changes the active model threshold; lowering it can increase false alerts and does not guarantee that falls will be detected.
+
+The server binds to `127.0.0.1` only. Opening `web-demo\index.html` directly or visiting its static Vercel deployment does not connect to the local model; run this Python service to use real inference in the browser. A public deployment with inference would need a separately hosted backend and should not send sensitive camera data to a remote service without an explicit privacy and security design.
+
+This is still an experimental prototype, not an emergency-monitoring product. At the checkpoint's saved 0.75 threshold, a test-split evaluation reported 41.6% recall and 70.6% precision, so it missed more than half of the labeled falls. Do not rely on it for real-world safety or emergency response.

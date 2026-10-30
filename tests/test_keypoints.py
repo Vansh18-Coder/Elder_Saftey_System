@@ -1,6 +1,11 @@
 import numpy as np
 
-from src.preprocessing.keypoints import build_temporal_sequence, flatten_landmarks, normalize_keypoints
+from src.preprocessing.keypoints import (
+    build_temporal_sequence,
+    feature_vector_from_landmarks,
+    flatten_landmarks,
+    normalize_keypoints,
+)
 
 
 def test_flatten_landmarks_returns_expected_length():
@@ -12,6 +17,20 @@ def test_flatten_landmarks_returns_expected_length():
     assert feature_vector.shape == (8,)
     assert np.isclose(feature_vector[0], 0.1)
     assert np.isclose(feature_vector[7], 0.9)
+
+
+def test_feature_vector_from_landmarks_pads_and_trims_to_model_dimension():
+    landmarks = [{"x": 0.1, "y": 0.2, "z": 0.3, "visibility": 0.8}]
+
+    padded = feature_vector_from_landmarks(landmarks, feature_dim=6)
+    trimmed = feature_vector_from_landmarks(landmarks * 2, feature_dim=6)
+
+    assert padded is not None
+    assert padded.shape == (6,)
+    assert np.array_equal(padded[4:], np.zeros(2, dtype=np.float32))
+    assert trimmed is not None
+    assert trimmed.shape == (6,)
+    assert feature_vector_from_landmarks(None) is None
 
 
 def test_normalize_keypoints_scales_coordinates():
